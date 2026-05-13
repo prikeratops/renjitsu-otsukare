@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スケジュール管理</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#f7f6f2;color:#1a1a1a;min-height:100vh}
+.app{max-width:420px;margin:0 auto;padding:16px 12px 40px}
+h1{font-size:17px;font-weight:600;text-align:center;margin-bottom:16px;letter-spacing:.03em;color:#1a1a1a}
+
+/* Tabs */
+.tabs{display:flex;background:#ebe9e2;border-radius:12px;padding:4px;margin-bottom:16px;gap:4px}
+.tab{flex:1;padding:9px;border:none;border-radius:9px;font-size:13px;font-weight:500;cursor:pointer;background:none;color:#888;transition:all .15s}
+.tab.active{background:#fff;color:#1a1a1a;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.section{display:none}
+.section.active{display:block}
+
+/* Calendar */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cal-nav{background:#fff;border:0.5px solid #ddd;border-radius:9px;padding:5px 14px;cursor:pointer;font-size:17px;color:#555;line-height:1}
+.cal-title{font-size:15px;font-weight:600;color:#1a1a1a}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-dow{text-align:center;font-size:11px;color:#aaa;padding:2px 0 6px}
+.cal-day{position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;border-radius:50%;border:none;background:none;color:#1a1a1a;-webkit-tap-highlight-color:transparent}
+.cal-day:active{transform:scale(.92)}
+.cal-day.empty{cursor:default;pointer-events:none}
+.cal-day.today .day-num{font-weight:700;color:#1a1a1a}
+.cal-day.today::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:#1a1a1a}
+.day-num{position:relative;z-index:1;line-height:1}
+.stamp{position:absolute;inset:2px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:0;border:2.5px solid transparent}
+.cal-day.s-income .stamp{border-color:#D85A30}
+.cal-day.s-study .stamp{border-color:#7F77DD}
+.cal-day.s-both .stamp{border-color:#D85A30}
+.both-dot{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;border:2px solid #7F77DD;background:#f7f6f2}
+.legend{display:flex;gap:16px;margin-top:10px;font-size:12px;color:#888}
+.legend span{display:flex;align-items:center;gap:5px}
+.leg-dot{width:10px;height:10px;border-radius:50%;border:2px solid}
+
+/* Modal overlay */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:flex-end;justify-content:center;padding:0}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:420px}
+.modal-handle{width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:0 auto 16px}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:14px;color:#1a1a1a}
+.stamp-btns{display:flex;gap:10px;margin-bottom:14px}
+.stamp-btn{flex:1;padding:11px 8px;border-radius:12px;border:2px solid #eee;background:#fafafa;font-size:13px;font-weight:500;cursor:pointer;text-align:center;transition:all .12s;color:#888}
+.stamp-btn.income.on{border-color:#D85A30;background:#FAECE7;color:#D85A30}
+.stamp-btn.study.on{border-color:#7F77DD;background:#EEEDFE;color:#7F77DD}
+.amount-section{margin-bottom:14px}
+.amount-section label{font-size:12px;color:#888;display:block;margin-bottom:5px}
+.amount-section input{width:100%;padding:11px 12px;border:1px solid #e0e0e0;border-radius:10px;font-size:15px;color:#1a1a1a;background:#fafafa}
+.amount-section input:focus{outline:none;border-color:#D85A30}
+.modal-actions{display:flex;gap:10px}
+.btn-cancel{flex:1;padding:12px;border:1px solid #e0e0e0;border-radius:12px;background:#fafafa;color:#888;font-size:14px;font-weight:500;cursor:pointer}
+.btn-save{flex:2;padding:12px;border:none;border-radius:12px;background:#1a1a1a;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+
+/* Summary */
+.month-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.stat-card{background:#fff;border-radius:14px;padding:14px 12px;border:0.5px solid #eee}
+.stat-lbl{font-size:11px;color:#aaa;margin-bottom:5px}
+.stat-val{font-size:21px;font-weight:700}
+.stat-val.ic{color:#D85A30}
+.stat-val.st{color:#7F77DD}
+.chart-card{background:#fff;border-radius:14px;padding:16px;margin-bottom:14px;border:0.5px solid #eee}
+.chart-lbl{font-size:12px;color:#aaa;margin-bottom:10px}
+.chart-wrap{position:relative;height:170px}
+.log-head{font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:8px}
+.log-list{display:flex;flex-direction:column;gap:6px}
+.log-item{display:flex;align-items:center;gap:10px;background:#fff;border-radius:10px;padding:11px 12px;font-size:13px;border:0.5px solid #eee}
+.ldot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ldot.income{background:#D85A30}
+.ldot.study{background:#7F77DD}
+.ldate{color:#aaa;min-width:52px;font-size:12px}
+.lcat{flex:1;color:#555}
+.lamt{font-weight:600;color:#1a1a1a}
+.ldel{background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:0 2px;line-height:1}
+.empty-msg{text-align:center;color:#ccc;font-size:13px;padding:24px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>📅 スケジュール管理</h1>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('cal')"><i class="ti ti-calendar"></i> カレンダー</button>
+    <button class="tab" onclick="switchTab('sum')"><i class="ti ti-chart-bar"></i> 月次集計</button>
+  </div>
+
+  <!-- Calendar -->
+  <div class="section active" id="sec-cal">
+    <div class="cal-header">
+      <button class="cal-nav" onclick="moveMonth(-1)">‹</button>
+      <div class="cal-title" id="cal-title"></div>
+      <button class="cal-nav" onclick="moveMonth(1)">›</button>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div class="legend">
+      <span><span class="leg-dot" style="border-color:#D85A30"></span>収入</span>
+      <span><span class="leg-dot" style="border-color:#7F77DD"></span>勉強</span>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="section" id="sec-sum">
+    <div class="cal-header">
+      <button class="cal-nav" onclick="moveSumMonth(-1)">‹</button>
+      <div class="cal-title" id="sum-title"></div>
+      <button class="cal-nav" onclick="moveSumMonth(1)">›</button>
+    </div>
+    <div class="month-stats">
+      <div class="stat-card"><div class="stat-lbl">今月の収入</div><div class="stat-val ic" id="stat-income">¥0</div></div>
+      <div class="stat-card"><div class="stat-lbl">勉強記録</div><div class="stat-val st" id="stat-study">0日</div></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-lbl">月別収入推移（直近6ヶ月）</div>
+      <div class="chart-wrap"><canvas id="incomeChart" role="img" aria-label="月別収入推移グラフ">月別収入の棒グラフ</canvas></div>
+    </div>
+    <div class="log-head">記録一覧</div>
+    <div class="log-list" id="log-list"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-date-label"></div>
+    <div class="stamp-btns">
+      <button class="stamp-btn income" id="btn-income" onclick="toggleType('income')">💴 収入</button>
+      <button class="stamp-btn study" id="btn-study" onclick="toggleType('study')">📚 勉強</button>
+    </div>
+    <div class="amount-section" id="amt-section" style="display:none">
+      <label>収入金額（円）</label>
+      <input type="number" id="amount-input" placeholder="例: 5000" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-save" onclick="saveStamp()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let data = {};
+try { data = JSON.parse(localStorage.getItem('sched_v1') || '{}'); } catch(e){}
+let calY, calM, sumY, sumM, modalDate, selTypes = [], chartInst = null;
+const now = new Date();
+calY = sumY = now.getFullYear();
+calM = sumM = now.getMonth();
+
+function save(){ try{ localStorage.setItem('sched_v1', JSON.stringify(data)); }catch(e){} }
+function key(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+
+function renderCal(){
+  const MN=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('cal-title').textContent = `${calY}年 ${MN[calM]}`;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  ['日','月','火','水','木','金','土'].forEach(d=>{
+    const el=document.createElement('div'); el.className='cal-dow'; el.textContent=d; grid.appendChild(el);
+  });
+  const first = new Date(calY, calM, 1).getDay();
+  const days = new Date(calY, calM+1, 0).getDate();
+  for(let i=0;i<first;i++){
+    const el=document.createElement('div'); el.className='cal-day empty'; grid.appendChild(el);
+  }
+  for(let d=1;d<=days;d++){
+    const k=key(calY,calM,d);
+    const rec=data[k]||{};
+    const btn=document.createElement('button');
+    btn.className='cal-day';
+    const isToday=now.getFullYear()===calY&&now.getMonth()===calM&&now.getDate()===d;
+    if(isToday) btn.classList.add('today');
+    btn.innerHTML=`<span class="stamp"></span><span class="day-num">${d}</span>`;
+    if(rec.income&&rec.study){btn.classList.add('s-both');btn.innerHTML+=`<span class="both-dot"></span>`;}
+    else if(rec.income) btn.classList.add('s-income');
+    else if(rec.study) btn.classList.add('s-study');
+    btn.onclick=()=>openModal(calY,calM,d);
+    grid.appendChild(btn);
+  }
+}
+
+function moveMonth(d){ calM+=d; if(calM<0){calM=11;calY--;}else if(calM>11){calM=0;calY++;} renderCal(); }
+
+function openModal(y,m,d){
+  modalDate=key(y,m,d);
+  const rec=data[modalDate]||{};
+  selTypes=[];
+  if(rec.income) selTypes.push('income');
+  if(rec.study) selTypes.push('study');
+  document.getElementById('modal-date-label').textContent=`${y}年${m+1}月${d}日`;
+  document.getElementById('amount-input').value=rec.amount||'';
+  updateModalUI();
+  document.getElementById('overlay').classList.add('open');
+}
+
+function toggleType(t){
+  const i=selTypes.indexOf(t);
+  if(i>=0) selTypes.splice(i,1); else selTypes.push(t);
+  updateModalUI();
+}
+
+function updateModalUI(){
+  document.getElementById('btn-income').className='stamp-btn income'+(selTypes.includes('income')?' on':'');
+  document.getElementById('btn-study').className='stamp-btn study'+(selTypes.includes('study')?' on':'');
+  document.getElementById('amt-section').style.display=selTypes.includes('income')?'':'none';
+}
+
+function saveStamp(){
+  if(!modalDate) return;
+  const amt=parseInt(document.getElementById('amount-input').value)||0;
+  if(!selTypes.length){ delete data[modalDate]; }
+  else { data[modalDate]={income:selTypes.includes('income'),study:selTypes.includes('study'),amount:selTypes.includes('income')?amt:0}; }
+  save(); closeModal(); renderCal();
+}
+
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+
+function moveSumMonth(d){ sumM+=d; if(sumM<0){sumM=11;sumY--;}else if(sumM>11){sumM=0;sumY++;} renderSum(); }
+
+function renderSum(){
+  const MN=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('sum-title').textContent=`${sumY}年 ${MN[sumM]}`;
+  let incTotal=0,studyDays=0;
+  const items=[];
+  Object.entries(data).forEach(([k,v])=>{
+    const [y,m,d]=k.split('-').map(Number);
+    if(y===sumY&&m-1===sumM){
+      if(v.income) incTotal+=v.amount||0;
+      if(v.study) studyDays++;
+      items.push({k,date:`${m}/${d}`,income:v.income,study:v.study,amount:v.amount||0});
+    }
+  });
+  items.sort((a,b)=>a.k.localeCompare(b.k));
+  document.getElementById('stat-income').textContent=`¥${incTotal.toLocaleString()}`;
+  document.getElementById('stat-study').textContent=`${studyDays}日`;
+  renderLog(items); renderChart();
+}
+
+function renderLog(items){
+  const el=document.getElementById('log-list'); el.innerHTML='';
+  if(!items.length){el.innerHTML='<div class="empty-msg">この月の記録はありません</div>';return;}
+  items.forEach(item=>{
+    if(item.income){
+      const d=document.createElement('div'); d.className='log-item';
+      d.innerHTML=`<span class="ldot income"></span><span class="ldate">${item.date}</span><span class="lcat">収入</span><span class="lamt">¥${item.amount.toLocaleString()}</span><button class="ldel" onclick="delEntry('${item.k}','income')">×</button>`;
+      el.appendChild(d);
+    }
+    if(item.study){
+      const d=document.createElement('div'); d.className='log-item';
+      d.innerHTML=`<span class="ldot study"></span><span class="ldate">${item.date}</span><span class="lcat">勉強</span><span class="lamt">—</span><button class="ldel" onclick="delEntry('${item.k}','study')">×</button>`;
+      el.appendChild(d);
+    }
+  });
+}
+
+function delEntry(k,type){
+  if(!data[k]) return;
+  data[k][type]=false;
+  if(type==='income') data[k].amount=0;
+  if(!data[k].income&&!data[k].study) delete data[k];
+  save(); renderSum(); renderCal();
+}
+
+function renderChart(){
+  const labels=[],vals=[];
+  for(let i=5;i>=0;i--){
+    let m=sumM-i,y=sumY;
+    if(m<0){m+=12;y--;}
+    labels.push(`${y}/${String(m+1).padStart(2,'0')}`);
+    let t=0;
+    Object.entries(data).forEach(([k,v])=>{
+      const [ky,km]=k.split('-').map(Number);
+      if(ky===y&&km-1===m&&v.income) t+=v.amount||0;
+    });
+    vals.push(t);
+  }
+  if(chartInst){chartInst.destroy();chartInst=null;}
+  chartInst=new Chart(document.getElementById('incomeChart').getContext('2d'),{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'収入 (円)',
+        data:vals,
+        backgroundColor:labels.map((_,i)=>i===5?'#D85A30':'#F0997B'),
+        borderRadius:6,
+        borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>`¥${Math.round(c.parsed.y).toLocaleString()}`}}
+      },
+      scales:{
+        x:{ticks:{font:{size:10},autoSkip:false,maxRotation:30},grid:{display:false}},
+        y:{ticks:{callback:v=>`¥${Math.round(v/1000)}k`,font:{size:10}},beginAtZero:true}
+      }
+    }
+  });
+}
+
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='cal')||(i===1&&t==='sum')));
+  document.getElementById('sec-cal').classList.toggle('active',t==='cal');
+  document.getElementById('sec-sum').classList.toggle('active',t==='sum');
+  if(t==='sum') renderSum();
+}
+
+document.getElementById('overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
+renderCal();
+</script>
+</body>
+</html>
